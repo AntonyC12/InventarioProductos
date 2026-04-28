@@ -1,56 +1,61 @@
-# Análisis de Sistemas de Inventario: Evolución Arquitectónica
+﻿# Análisis de Sistemas de Inventario: Spaghetti vs MVC
 
-Este repositorio documenta la evolución de un sistema de gestión de inventarios a través de tres etapas de diseño de software: desde un enfoque monolítico ("Spaghetti") hasta una arquitectura empresarial moderna con **Spring MVC**.
+Este documento proporciona un análisis técnico detallado de dos implementaciones del mismo sistema de inventario: una versión monolítica ("Spaghetti") y una versión modular basada en el patrón arquitectónico MVC.
 
 ---
 
 ## 1. Análisis Técnico: ProductsSpaguetti
-La versión inicial es un ejemplo de **Código Monolítico**. Toda la lógica reside en una sola clase y función.
+
+La versión "Spaghetti" se caracteriza por ser un código monolítico donde toda la lógica de negocio, la interacción con el usuario y la persistencia de datos residen en una sola función y clase.
 
 ### Funciones y Lógica
-*   **Manejo de Datos**: Utiliza arreglos primitivos paralelos (`String[]`, `double[]`). Esto es propenso a errores de sincronización de índices.
-*   **Capacidad**: Limitada por una `capacidadMax` fija. No es escalable.
-*   **CRUD**: Las operaciones están mezcladas con la lógica de entrada/salida (I/O).
-*   **Persistencia**: Escritura directa en archivos de texto dentro del flujo principal.
+*   **Función `main`**: Es el único punto de ejecución y contiene toda la lógica del sistema. No existe modularización, lo que dificulta la reutilización de código.
+*   **Manejo de Listas/Arrays**: 
+    *   Utiliza **arreglos primitivos paralelos** (`String[] nombres`, `double[] precios`, `int[] cantidades`).
+    *   Depende de una `capacidadMax` definida por el usuario al inicio, lo que limita la escalabilidad dinámica.
+    *   Usa un contador `totalProductos` para rastrear cuántos elementos están ocupados en los arreglos.
+*   **Persistencia (.txt)**:
+    *   Se realiza mediante `PrintWriter` y `FileWriter`.
+    *   Los datos se guardan en formato CSV (valores separados por comas).
+    *   **Crítica**: Si el usuario olvida seleccionar la opción de guardar, los cambios en memoria se pierden al salir.
+*   **Operaciones CRUD**:
+    *   **Create**: Opción 1 (`if (opcion == 1)`), solicita datos y los inserta en la siguiente posición libre del arreglo.
+    *   **Read**: Opción 2, recorre los arreglos con un bucle `for` y calcula el valor total en tiempo de ejecución.
+    *   **Update**: Opción 3, accede directamente al índice del arreglo para modificar el stock.
+    *   **Delete**: Opción 4, simplemente asigna `null` a la posición del nombre, lo cual es ineficiente ya que deja "huecos" en el arreglo.
 
 ---
 
 ## 2. Análisis Técnico: ProductsMVC
-Esta versión introduce la **Separación de Responsabilidades** mediante el patrón MVC manual.
 
-### Componentes
-*   **Model**: Encapsula los datos en objetos `Product`.
-*   **View**: Clase dedicada exclusivamente a la interacción con la consola.
-*   **Controller**: Coordina el flujo entre el usuario y los datos.
-*   **Repository**: Centraliza la persistencia en archivos.
-*   **Ventajas**: Uso de `ArrayList` (listas dinámicas) y facilidad de mantenimiento. Las dependencias son nulas (Java Puro).
+La versión MVC (Modelo-Vista-Controlador) organiza el código en capas con responsabilidades únicas, facilitando el mantenimiento y la expansión del sistema.
 
----
+### Justificación de la Arquitectura Modular
+La arquitectura MVC es la mejor opción porque:
+1.  **Separación de Concernimientos**: La lógica de datos (Model) no sabe nada de la interfaz (View), y el Controller actúa como mediador.
+2.  **Mantenibilidad**: Si se desea cambiar la consola por una interfaz gráfica (GUI), solo se modifica la Vista; el resto del sistema permanece intacto.
+3.  **Escalabilidad**: Usa estructuras dinámicas (`ArrayList`) en lugar de arreglos fijos.
 
-## 3. Análisis Técnico: InventaryWeb (Spring MVC)
-Es la versión más avanzada, transformando el sistema en una **Aplicación Web Empresarial**.
+### Componentes y Conexiones
+*   **Modelo (`Product.java`)**: Representa la entidad del mundo real. Contiene atributos, getters/setters y la lógica de negocio básica (como `getTotalValue()`).
+*   **Vista (`InventoryView.java`)**: Encargada exclusivamente de la interacción con el usuario. Lee entradas del teclado y muestra mensajes en consola. No contiene lógica de procesamiento.
+*   **Repositorio (`ProductRepository.java`)**: Capa de persistencia. Se encarga de leer y escribir en el archivo `inventory.txt`. Centraliza el manejo de errores de E/S.
+*   **Controlador (`InventoryController.java`)**: El "cerebro" del sistema. Coordina las acciones: recibe órdenes de la Vista, manipula el Modelo y solicita persistencia al Repositorio.
+*   **Clase Principal (`Main.java`)**: Realiza la **Inyección de Dependencias**. Instancia los componentes y los conecta, iniciando el flujo de trabajo.
 
-### Integración del Framework Spring
-*   **Inversión de Control (IoC)**: Spring gestiona el ciclo de vida de los objetos (Beans). No usamos `new` manualmente; Spring inyecta las dependencias mediante `@Autowired`.
-*   **Spring MVC**: Implementa el patrón MVC de forma nativa. Los controladores (`@Controller`) manejan peticiones HTTP y retornan vistas.
-*   **Thymeleaf**: Motor de plantillas que permite usar **HTML Vanilla** con atributos dinámicos, separando totalmente el diseño de la lógica.
-*   **Gestión de Dependencias**: Se utiliza **Maven** para administrar librerías externas como Spring Core, Web MVC y **Jackson** (necesaria para la serialización de datos).
-
-### Infraestructura y Despliegue
-*   **Servidor**: Se despliega en **GlassFish Server 5.1**, un servidor de aplicaciones compatible con Java EE / Jakarta EE.
-*   **Persistencia**: Mantiene el uso de archivos `.txt`, pero la ruta se gestiona de forma segura dentro del servidor (usando el directorio de usuario para evitar bloqueos de permisos).
-*   **Interfaz**: Dashboard profesional con CSS moderno, responsivo y sin dependencias pesadas de JS.
+### Análisis Técnico Detallado
+*   **Persistencia**: Se obtiene a través de `ProductRepository` mediante el uso de `BufferedReader` y `PrintWriter`. Convierte líneas de texto en objetos `Product` (deserialización) y viceversa (serialización).
+*   **Dependencias**: El proyecto es autosuficiente. Utiliza únicamente la API estándar de Java (`java.io`, `java.util`). No requiere frameworks externos, lo que lo hace ligero y portable.
+*   **Manejo de Datos**: Utiliza `List<Product>`, permitiendo que el inventario crezca dinámicamente sin necesidad de definir un tamaño máximo inicial.
 
 ---
 
 ## Comparativa Final
 
-| Característica | ProductsSpaguetti | ProductsMVC | InventaryWeb (Spring) |
-| :--- | :--- | :--- | :--- |
-| **Arquitectura** | Monolítica | MVC Manual | MVC Empresarial (Framework) |
-| **Interfaz** | Consola (Básica) | Consola (Modular) | Web (HTML/CSS Premium) |
-| **Gestión de Objetos** | Manual (new) | Manual (Inyección simple) | Automática (Spring IoC) |
-| **Escalabilidad** | Nula (Arreglos fijos) | Alta (Listas dinámicas) | Muy Alta (Web/Multi-usuario) |
-| **Servidor** | Ninguno | Ninguno | GlassFish Server 5.1 |
-| **Dependencias** | Ninguna (Java SE) | Ninguna (Java SE) | Maven (Spring, Thymeleaf, Jackson) |
-
+| Característica | ProductsSpaguetti | ProductsMVC |
+| :--- | :--- | :--- |
+| **Estructura** | Un solo archivo (Monolítico) | Múltiples paquetes/clases (Modular) |
+| **Acoplamiento** | Muy alto (Difícil de cambiar) | Bajo (Componentes independientes) |
+| **Manejo de Datos** | Arreglos fijos (Paralelos) | Objetos en Listas Dinámicas |
+| **Reutilización** | Nula | Alta |
+| **Persistencia** | Manual en el flujo principal | Centralizada en Repositorio |
