@@ -1,0 +1,5 @@
+com\mycompany\products\repository\ProductRepository.class
+com\mycompany\products\view\InventoryView.class
+com\mycompany\products\controller\InventoryController.class
+com\mycompany\products\Main.class
+com\mycompany\products\model\Product.class
